@@ -1,13 +1,19 @@
 import { useEffect, useState } from "react";
-import Navbar from "../components/Navbar.jsx";
+import { format } from "date-fns";
+import { Search, Filter, SlidersHorizontal, Plus, MoreHorizontal } from "lucide-react";
 import Pagination from "../components/Pagination.jsx";
 import SearchBar from "../components/SearchBar.jsx";
+import RescheduleModal from "../components/appointments/RescheduleModal.jsx";
+import BookingModal from "../components/appointments/BookingModal.jsx";
+import CancelDialog from "../components/appointments/CancelDialog.jsx";
+import { useToast } from "../components/ui/Toast.jsx";
 import api from "../services/api.js";
 
 const STATUS_STYLE = {
-  SCHEDULED: "text-brand-700 bg-brand-50",
-  CANCELLED: "text-slate-500 bg-slate-100",
-  COMPLETED: "text-green-700 bg-green-50",
+  SCHEDULED: "bg-brand-500/10 text-brand-500 border-brand-500/20",
+  COMPLETED: "bg-success-bg text-success border-success/20",
+  CANCELLED: "bg-surfaceHover text-muted border-border",
+  NO_SHOW: "bg-error-bg text-error border-error/20",
 };
 
 export default function Appointments() {
@@ -17,94 +23,196 @@ export default function Appointments() {
   const [sortBy, setSortBy] = useState("startTime");
   const [order, setOrder] = useState("asc");
   const [search, setSearch] = useState("");
+  
   const [cancelTarget, setCancelTarget] = useState(null);
-  const [cancelError, setCancelError] = useState(null);
+  const [rescheduleTarget, setRescheduleTarget] = useState(null);
+  const [showBooking, setShowBooking] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  const { addToast } = useToast();
 
   function load() {
+    setLoading(true);
     api
       .get("/appointments", { params: { page, limit: 10, sortBy, order, patientName: search || undefined } })
       .then((res) => {
         setAppointments(res.data.data);
         setTotalPages(res.data.pagination.totalPages);
-      });
+      })
+      .finally(() => setLoading(false));
   }
 
   useEffect(load, [page, sortBy, order, search]);
 
-  async function confirmCancel() {
-    setCancelError(null);
+  async function completeAppointment(id) {
+    // We can't use window.confirm easily with a pretty UI without building a new modal for it, 
+    // so we'll just keep window.confirm but use toast for success/error
+    if (!window.confirm("Mark this appointment as completed?")) return;
     try {
-      await api.patch(`/appointments/${cancelTarget.id}/cancel`);
-      setCancelTarget(null);
+      await api.patch(`/appointments/${id}/complete`);
+      addToast("Appointment completed", "success");
       load();
     } catch (err) {
-      setCancelError(err.response?.data?.error?.message || "Could not cancel appointment.");
+      addToast(err.response?.data?.error?.message || "Could not complete appointment.", "error");
     }
   }
 
-  const hoursUntil = cancelTarget ? (new Date(cancelTarget.startTime) - new Date()) / 36e5 : 0;
-  const willBeLate = hoursUntil < 24;
-
   return (
-    <div>
-      <Navbar />
-      <main className="max-w-4xl mx-auto px-6 py-8 space-y-4">
-        <h1 className="text-xl font-semibold">Appointments</h1>
-
-        <div className="flex gap-3 items-center">
-          <div className="flex-1"><SearchBar value={search} onChange={(v) => { setPage(1); setSearch(v); }} /></div>
-          <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} className="border rounded-md px-3 py-2 text-sm">
-            <option value="startTime">Appointment time</option>
-            <option value="createdAt">Created date</option>
-            <option value="status">Status</option>
-          </select>
-          <select value={order} onChange={(e) => setOrder(e.target.value)} className="border rounded-md px-3 py-2 text-sm">
-            <option value="asc">Ascending</option>
-            <option value="desc">Descending</option>
-          </select>
+    <div className="space-y-6 animate-in fade-in duration-500">
+      
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Appointments</h1>
+          <p className="text-muted mt-1 text-sm">Manage the clinic schedule.</p>
         </div>
+        <button 
+          onClick={() => setShowBooking(true)}
+          className="bg-foreground text-background font-medium px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-muted transition-colors shadow-sm"
+        >
+          <Plus className="w-4 h-4" /> New appointment
+        </button>
+      </div>
 
-        <div className="bg-white border border-slate-200 rounded-lg divide-y divide-slate-100">
-          {appointments.map((a) => (
-            <div key={a.id} className="flex items-center justify-between px-4 py-3">
-              <div>
-                <div className="text-sm font-medium">{a.patient?.name} <span className="text-slate-400">with</span> {a.doctor?.name}</div>
-                <div className="text-xs text-slate-500">{new Date(a.startTime).toLocaleString()}</div>
-              </div>
-              <div className="flex items-center gap-3">
-                <span className={`text-xs px-2 py-1 rounded-full uppercase ${STATUS_STYLE[a.status]}`}>{a.status}</span>
-                {a.status === "SCHEDULED" && (
-                  <button onClick={() => setCancelTarget(a)} className="text-xs text-red-600 hover:underline">Cancel</button>
-                )}
-              </div>
-            </div>
-          ))}
-          {appointments.length === 0 && <div className="p-6 text-center text-sm text-slate-500">No appointments found.</div>}
+      {/* Controls */}
+      <div className="bg-surface border border-border rounded-xl p-4 flex flex-col md:flex-row gap-4 items-center justify-between">
+        <div className="relative w-full md:w-96 group">
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted group-focus-within:text-brand-500 transition-colors" />
+          <input 
+            type="text" 
+            placeholder="Search patient name..." 
+            value={search}
+            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+            className="w-full bg-background border border-border rounded-lg pl-9 pr-4 py-2 text-sm focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-all"
+          />
         </div>
-
-        <Pagination page={page} totalPages={totalPages} onChange={setPage} />
-      </main>
-
-      {cancelTarget && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-sm p-6 space-y-4">
-            <h2 className="text-lg font-semibold">Cancel Appointment?</h2>
-            <div className="text-sm text-slate-600">
-              <div>{cancelTarget.patient?.name}</div>
-              <div>{cancelTarget.doctor?.name}</div>
-              <div>{new Date(cancelTarget.startTime).toLocaleString()}</div>
-            </div>
-            <div className={`rounded-md p-3 text-sm ${willBeLate ? "bg-amber-50 text-amber-800" : "bg-green-50 text-green-800"}`}>
-              {willBeLate ? "Late cancellation — a fee applies." : "Free cancellation."}
-              <div className="font-semibold mt-1">Fee: ₹{willBeLate ? 200 : 0}</div>
-            </div>
-            {cancelError && <div className="bg-red-50 text-red-700 text-sm p-2 rounded-md">{cancelError}</div>}
-            <div className="flex justify-end gap-2">
-              <button onClick={() => setCancelTarget(null)} className="px-4 py-2 text-sm rounded-md border border-slate-300">Keep Appointment</button>
-              <button onClick={confirmCancel} className="px-4 py-2 text-sm rounded-md bg-red-600 text-white hover:bg-red-700">Cancel Appointment</button>
-            </div>
+        
+        <div className="flex w-full md:w-auto gap-3">
+          <div className="relative flex-1 md:w-auto">
+            <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} className="w-full appearance-none bg-background border border-border rounded-lg pl-3 pr-8 py-2 text-sm outline-none focus:border-brand-500">
+              <option value="startTime">Start time</option>
+              <option value="createdAt">Date created</option>
+              <option value="status">Status</option>
+            </select>
+            <Filter className="w-3.5 h-3.5 absolute right-3 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
+          </div>
+          <div className="relative flex-1 md:w-auto">
+            <select value={order} onChange={(e) => setOrder(e.target.value)} className="w-full appearance-none bg-background border border-border rounded-lg pl-3 pr-8 py-2 text-sm outline-none focus:border-brand-500">
+              <option value="asc">Ascending</option>
+              <option value="desc">Descending</option>
+            </select>
+            <SlidersHorizontal className="w-3.5 h-3.5 absolute right-3 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
           </div>
         </div>
+      </div>
+
+      {/* Table */}
+      <div className="bg-surface border border-border rounded-xl overflow-hidden shadow-sm">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-surfaceHover border-b border-border">
+                <th className="px-6 py-3 text-xs font-semibold text-muted tracking-wider uppercase">Patient</th>
+                <th className="px-6 py-3 text-xs font-semibold text-muted tracking-wider uppercase">Doctor</th>
+                <th className="px-6 py-3 text-xs font-semibold text-muted tracking-wider uppercase">Date & Time</th>
+                <th className="px-6 py-3 text-xs font-semibold text-muted tracking-wider uppercase">Status</th>
+                <th className="px-6 py-3 text-xs font-semibold text-muted tracking-wider uppercase text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border/50">
+              {loading ? (
+                <tr>
+                  <td colSpan="5" className="px-6 py-12 text-center text-muted">
+                    <div className="animate-pulse space-y-4">
+                      <div className="h-4 bg-surfaceHover rounded w-1/4 mx-auto" />
+                      <div className="h-4 bg-surfaceHover rounded w-1/3 mx-auto" />
+                    </div>
+                  </td>
+                </tr>
+              ) : appointments.length === 0 ? (
+                <tr>
+                  <td colSpan="5" className="px-6 py-12 text-center">
+                    <div className="w-12 h-12 bg-surfaceHover rounded-full flex items-center justify-center mx-auto mb-3">
+                      <Search className="w-5 h-5 text-muted" />
+                    </div>
+                    <div className="font-medium text-foreground">No appointments found</div>
+                    <div className="text-sm text-muted mt-1">Try adjusting your filters or search term.</div>
+                  </td>
+                </tr>
+              ) : (
+                appointments.map((a) => (
+                  <tr key={a.id} className="group hover:bg-background/50 transition-colors">
+                    <td className="px-6 py-4">
+                      <div className="font-medium text-foreground">{a.patient?.name}</div>
+                      <div className="text-xs text-muted">{a.patient?.email}</div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="text-sm">Dr. {a.doctor?.name}</div>
+                      <div className="text-xs text-muted">{a.doctor?.specialization}</div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="text-sm text-foreground">{format(new Date(a.startTime), "MMM d, yyyy")}</div>
+                      <div className="text-xs font-mono text-muted">{format(new Date(a.startTime), "hh:mm a")} — {a.durationInMinutes}m</div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className={`text-[10px] uppercase font-bold px-2 py-1 rounded-full border ${STATUS_STYLE[a.status] || STATUS_STYLE.SCHEDULED}`}>
+                        {a.status}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      {a.status === "SCHEDULED" ? (
+                        <div className="flex justify-end gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button onClick={() => completeAppointment(a.id)} className="text-xs font-medium text-success hover:text-success/80">Complete</button>
+                          <button onClick={() => setRescheduleTarget(a)} className="text-xs font-medium text-brand-500 hover:text-brand-400">Reschedule</button>
+                          <button onClick={() => setCancelTarget(a)} className="text-xs font-medium text-error hover:text-error/80">Cancel</button>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-muted">No actions</span>
+                      )}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+        
+        {/* Pagination Wrapper */}
+        <div className="p-4 border-t border-border bg-surfaceHover/30">
+          <Pagination page={page} totalPages={totalPages} onChange={setPage} />
+        </div>
+      </div>
+
+      {cancelTarget && (
+        <CancelDialog 
+          appointment={cancelTarget} 
+          onClose={() => setCancelTarget(null)} 
+          onSuccess={() => {
+            setCancelTarget(null);
+            load();
+          }}
+        />
+      )}
+
+      {rescheduleTarget && (
+        <RescheduleModal
+          appointment={rescheduleTarget}
+          onClose={() => setRescheduleTarget(null)}
+          onRescheduled={() => {
+            setRescheduleTarget(null);
+            load();
+          }}
+        />
+      )}
+
+      {showBooking && (
+        <BookingModal
+          onClose={() => setShowBooking(false)}
+          onBooked={() => {
+            setShowBooking(false);
+            load();
+          }}
+        />
       )}
     </div>
   );

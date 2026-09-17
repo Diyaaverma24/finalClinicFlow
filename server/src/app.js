@@ -5,6 +5,7 @@ const authRoutes = require("./routes/auth.routes");
 const doctorRoutes = require("./routes/doctor.routes");
 const patientRoutes = require("./routes/patient.routes");
 const appointmentRoutes = require("./routes/appointment.routes");
+const clockRoutes = require("./routes/clock.routes");
 
 const app = express();
 app.use(cors());
@@ -16,6 +17,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/doctors", doctorRoutes);
 app.use("/api/patients", patientRoutes);
 app.use("/api/appointments", appointmentRoutes);
+app.use("/api", clockRoutes);
 
 app.use((req, res) => {
   res.status(404).json({ success: false, error: { code: "NOT_FOUND", message: "Route not found." } });

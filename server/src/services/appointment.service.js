@@ -112,4 +112,79 @@ async function cancelAppointment(appointmentId) {
   });
 }
 
-module.exports = { hasConflict, createAppointment, cancelAppointment, VALID_DURATIONS };
+async function rescheduleAppointment(appointmentId, startTime, durationMinutes) {
+  if (!VALID_DURATIONS.includes(durationMinutes)) {
+    const err = new Error("Duration must be one of 15, 30, 45, 60 minutes.");
+    err.code = "INVALID_DURATION";
+    err.status = 400;
+    throw err;
+  }
+  const appointment = await prisma.appointment.findUnique({ where: { id: appointmentId } });
+  if (!appointment) {
+    const err = new Error("Appointment not found.");
+    err.code = "APPOINTMENT_NOT_FOUND";
+    err.status = 404;
+    throw err;
+  }
+  if (appointment.status !== "SCHEDULED") {
+    const err = new Error("Only SCHEDULED appointments can be rescheduled.");
+    err.code = "INVALID_APPOINTMENT_STATE";
+    err.status = 400;
+    throw err;
+  }
+  const start = new Date(startTime);
+  if (isNaN(start.getTime())) {
+    const err = new Error("Invalid start time.");
+    err.code = "INVALID_TIME";
+    err.status = 400;
+    throw err;
+  }
+  const end = new Date(start.getTime() + durationMinutes * 60000);
+
+  return prisma.$transaction(async (tx) => {
+    const overlapping = await tx.appointment.findMany({
+      where: {
+        doctorId: appointment.doctorId,
+        status: "SCHEDULED",
+        id: { not: appointmentId },
+        startTime: { lt: end },
+        endTime: { gt: start },
+      },
+    });
+    if (overlapping.length > 0) {
+      const err = new Error("Doctor already has an appointment during this time.");
+      err.code = "APPOINTMENT_CONFLICT";
+      err.status = 409;
+      throw err;
+    }
+    return tx.appointment.update({
+      where: { id: appointmentId },
+      data: { startTime: start, endTime: end },
+      include: { doctor: true, patient: true },
+    });
+  });
+}
+
+async function completeAppointment(appointmentId) {
+  const appointment = await prisma.appointment.findUnique({ where: { id: appointmentId } });
+  if (!appointment) {
+    const err = new Error("Appointment not found.");
+    err.code = "APPOINTMENT_NOT_FOUND";
+    err.status = 404;
+    throw err;
+  }
+  if (appointment.status !== "SCHEDULED") {
+    const err = new Error("Only SCHEDULED appointments can be completed.");
+    err.code = "INVALID_APPOINTMENT_STATE";
+    err.status = 400;
+    throw err;
+  }
+  return prisma.appointment.update({
+    where: { id: appointmentId },
+    data: { status: "COMPLETED", completedAt: new Date() },
+    include: { doctor: true, patient: true },
+  });
+}
+
+module.exports = { hasConflict, createAppointment, cancelAppointment, rescheduleAppointment, completeAppointment, VALID_DURATIONS };
+

@@ -78,4 +78,35 @@ async function cancel(req, res) {
   }
 }
 
-module.exports = { listAppointments, getAppointment, bookAppointment, cancel };
+const rescheduleSchema = z.object({
+  startTime: z.string().min(1),
+  duration: z.number().refine((v) => VALID_DURATIONS.includes(v), "Duration must be 15/30/45/60"),
+});
+
+async function reschedule(req, res) {
+  const parsed = rescheduleSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ success: false, error: { code: "INVALID_INPUT", message: parsed.error.issues[0].message } });
+  }
+  try {
+    const appointment = await require("../services/appointment.service").rescheduleAppointment(
+      req.params.id,
+      parsed.data.startTime,
+      parsed.data.duration
+    );
+    res.json({ data: appointment });
+  } catch (err) {
+    res.status(err.status || 500).json({ success: false, error: { code: err.code || "SERVER_ERROR", message: err.message } });
+  }
+}
+
+async function complete(req, res) {
+  try {
+    const appointment = await require("../services/appointment.service").completeAppointment(req.params.id);
+    res.json({ data: appointment });
+  } catch (err) {
+    res.status(err.status || 500).json({ success: false, error: { code: err.code || "SERVER_ERROR", message: err.message } });
+  }
+}
+
+module.exports = { listAppointments, getAppointment, bookAppointment, cancel, reschedule, complete };

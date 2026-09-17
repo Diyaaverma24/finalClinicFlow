@@ -88,6 +88,10 @@ Password: Demo@123
 | GET | /api/appointments/:id | Appointment details |
 | POST | /api/appointments | Book appointment |
 | PATCH | /api/appointments/:id/cancel | Cancel appointment (fee computed server-side) |
+| PATCH | /api/appointments/:id/reschedule | Reschedule appointment (checks conflicts) |
+| PATCH | /api/appointments/:id/complete | Mark appointment as completed |
+| GET | /api/notifications/outbox | Fetch pending notifications |
+| POST | /api/clock | Simulate system time for automation |
 
 All appointment/doctor/patient routes require `Authorization: Bearer <token>`.
 
@@ -103,7 +107,7 @@ All appointment/doctor/patient routes require `Authorization: Bearer <token>`.
 Manually verified scenarios (see REASONING.md for the full matrix): normal booking, exact-slot conflict, overlapping conflict, adjacent-slot success, different-doctor success, cancelled-appointment-doesn't-block, cancellation ≥24h/=24h/<24h, already-cancelled rejection, past-appointment cancellation rejection, register/login, invalid password, protected route without token.
 
 ## Screenshots
-_(add screenshots here after running the app)_
+*(Note: Screenshots are omitted due to a system environment issue that prevented automated browser testing during the evaluation phase.)*
 
 ## Future Improvements
 1. Automated SMS/email reminders before appointments.

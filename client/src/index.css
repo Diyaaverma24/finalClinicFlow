@@ -1,5 +1,26 @@
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@300;400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-body { @apply bg-slate-50 text-slate-900; }
+@layer base {
+  body {
+    @apply bg-background text-foreground font-sans antialiased selection:bg-brand-500 selection:text-white;
+  }
+}
+
+/* Custom Scrollbar for a premium feel */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  @apply bg-background;
+}
+::-webkit-scrollbar-thumb {
+  @apply bg-surfaceHover rounded-full border-2 border-background;
+}
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-muted;
+}

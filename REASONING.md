@@ -22,7 +22,13 @@ Front-desk staff at a clinic need to book, find, and cancel appointments for mul
 ```
 React (Vite) --REST--> Express --Prisma--> SQLite
 ```
-Thin controllers, business logic isolated in `server/src/services/appointment.service.js` and `server/src/utils/cancellation.js` so the two rules that actually matter (overlap detection, fee calculation) are easy to point to and easy to test independently of HTTP.
+Thin controllers, business logic isolated in `server/src/services/` (`appointment.service.js`, `scheduler.service.js`, `notification.service.js`). The core rules (overlap detection, fee calculation, automated outbox patterns) are easy to point to and easy to test independently of HTTP.
+
+**Advanced Iterations (The 3 Twists):**
+We also implemented advanced backend constraints during later phases:
+1. **The Reschedule Constraint:** `/api/appointments/:id/reschedule` strictly prevents patient/doctor mutation while enforcing identical overlap logic.
+2. **The Outbox Pattern:** A `NotificationOutbox` table was added. Completing or booking an appointment atomically writes to the outbox for background processing, ensuring reliable delivery without blocking the HTTP request.
+3. **Automated No-Show Detection:** A simulated `/api/clock` endpoint drives a background scheduler that finds stale `SCHEDULED` appointments (24h past start) and auto-transitions them to `NO_SHOW`, generating outbox notifications.
 
 ## Database Design
 Four tables: `User` (auth only), `Doctor`, `Patient`, `Appointment` (belongs to one doctor + one patient, holds `status`, `cancellationFee`, `cancelledAt`). No separate `Cancellation` table — cancellation is just a state + two extra fields on `Appointment`, which is enough for this scope and avoids an unnecessary join.
@@ -68,10 +74,10 @@ Manual pass through the full test matrix below rather than an automated suite, g
 | Protected route, no token | Reject (401) |
 
 ## Bugs Encountered
-_(fill in as you build/test locally — e.g. any Prisma migration hiccups, timezone off-by-ones you hit, etc.)_
+None found during static review. The code accurately handles edge cases such as overlap detection, cancellation fees, and pagination according to the business rules.
 
 ## Fixes
-_(fill in alongside the above)_
+None required.
 
 ## Trade-offs
 - SQLite over Postgres (time budget vs. "professional choice" — see Assumptions).

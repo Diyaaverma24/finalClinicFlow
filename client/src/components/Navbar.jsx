@@ -11,18 +11,18 @@ export default function Navbar() {
 
   return (
     <nav className="flex items-center justify-between px-6 py-4 bg-white border-b border-slate-200">
-      <Link to="/" className="font-bold text-lg text-brand-700">ClinicFlow</Link>
-      <div className="flex gap-4 items-center text-sm">
+      <Link to="/" className="font-bold text-lg text-navy-900">ClinicFlow</Link>
+      <div className="flex gap-4 items-center text-sm font-medium">
         {isAuthed ? (
           <>
-            <Link to="/dashboard" className="hover:text-brand-600">Dashboard</Link>
-            <Link to="/appointments" className="hover:text-brand-600">Appointments</Link>
-            <button onClick={logout} className="text-slate-500 hover:text-red-600">Logout</button>
+            <Link to="/dashboard" className="text-slate-600 hover:text-brand-600">Dashboard</Link>
+            <Link to="/appointments" className="text-slate-600 hover:text-brand-600">Appointments</Link>
+            <button onClick={logout} className="text-slate-500 hover:text-red-600 ml-4">Logout</button>
           </>
         ) : (
           <>
-            <Link to="/login" className="hover:text-brand-600">Login</Link>
-            <Link to="/register" className="bg-brand-600 text-white px-3 py-1.5 rounded-md hover:bg-brand-700">Register</Link>
+            <Link to="/login" className="text-navy-900 hover:text-brand-600">Login</Link>
+            <Link to="/register" className="bg-brand-600 text-white px-4 py-1.5 rounded-full hover:bg-brand-700 shadow-sm">Register</Link>
           </>
         )}
       </div>
