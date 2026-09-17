@@ -1,0 +1,57 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  // NOTE: SQLite chosen deliberately for a 2-hour build window — zero DB-server setup.
+  // To switch to Postgres: provider = "postgresql", url = env("DATABASE_URL"),
+  // and set DATABASE_URL="postgresql://user:pass@localhost:5432/clinicflow" in .env
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(uuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+}
+
+model Doctor {
+  id             String        @id @default(uuid())
+  name           String
+  specialization String
+  createdAt      DateTime      @default(now())
+  appointments   Appointment[]
+}
+
+model Patient {
+  id           String        @id @default(uuid())
+  name         String
+  phone        String
+  email        String?
+  createdAt    DateTime      @default(now())
+  appointments Appointment[]
+}
+
+enum AppointmentStatus {
+  SCHEDULED
+  CANCELLED
+  COMPLETED
+}
+
+model Appointment {
+  id              String            @id @default(uuid())
+  doctorId        String
+  patientId       String
+  doctor          Doctor            @relation(fields: [doctorId], references: [id])
+  patient         Patient           @relation(fields: [patientId], references: [id])
+  startTime       DateTime
+  endTime         DateTime
+  status          AppointmentStatus @default(SCHEDULED)
+  cancellationFee Int               @default(0)
+  cancelledAt     DateTime?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+}
